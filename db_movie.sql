@@ -2,6 +2,8 @@
 
 --use db_movie
 
+
+
 -- Bảng quản lý loại nhân viên (vị trí làm việc)
 CREATE TABLE EmployeeType (
     type_id INT PRIMARY KEY IDENTITY(1,1),
@@ -13,29 +15,30 @@ CREATE TABLE Employee (
     employee_id INT PRIMARY KEY IDENTITY(1,1),
     name NVARCHAR(255) NOT NULL,
     type_id INT FOREIGN KEY REFERENCES EmployeeType(type_id), -- Liên kết với bảng EmployeeType
-    hire_date NVARCHAR(10), -- Ngày bắt đầu làm việc, định dạng chuỗi (vd: 'yyyy-MM-dd')
+    birth_day NVARCHAR(10), -- Ngày sinh, định dạng chuỗi (vd: 'yyyy-MM-dd')
     phone NVARCHAR(20),
     email NVARCHAR(255),
-    salary FLOAT -- Lương
 );
 
--- Bảng quản lý khách hàng
-CREATE TABLE Customer (
-    customer_id INT PRIMARY KEY IDENTITY(1,1),
-    name NVARCHAR(255) NOT NULL,
-    phone NVARCHAR(20),
-    email NVARCHAR(255)
+CREATE TABLE MovieStatus (
+    status_id INT PRIMARY KEY IDENTITY(1,1),
+    status NVARCHAR(20) CHECK (status IN (N'Đang chiếu', N'Ngừng chiếu')) NOT NULL
 );
 
--- Bảng quản lý phim
 CREATE TABLE Movie (
     movie_id INT PRIMARY KEY IDENTITY(1,1),
     title NVARCHAR(255) NOT NULL,
     genre NVARCHAR(100),
     duration INT,  -- Thời lượng phim tính bằng phút
     release_date NVARCHAR(10), -- Ngày phát hành dưới dạng chuỗi (vd: 'yyyy-MM-dd')
-    director NVARCHAR(255)
+    director NVARCHAR(255),
+    status_id INT, -- Thêm cột status_id làm khóa ngoại
+    FOREIGN KEY (status_id) REFERENCES MovieStatus(status_id) -- Khóa ngoại liên kết với MovieStatus
 );
+
+ALTER TABLE Movie
+ADD Img NVARCHAR(255);
+
 
 -- Bảng quản lý phòng chiếu
 CREATE TABLE Theater (
@@ -63,65 +66,58 @@ CREATE TABLE Ticket (
     purchase_time NVARCHAR(255) -- Thời gian mua vé dưới dạng chuỗi
 );
 
+ALTER TABLE Ticket
+ADD theater_id INT;
+ALTER TABLE Ticket
+ADD CONSTRAINT FK_Ticket_Theater
+FOREIGN KEY (theater_id) REFERENCES Theater(theater_id);
+
+
+
 -- Bảng quản lý hóa đơn
 CREATE TABLE Invoice (
     invoice_id INT PRIMARY KEY IDENTITY(1,1),
-    customer_name NVARCHAR(255), -- Tên khách hàng nếu không có tài khoản
-    customer_id INT FOREIGN KEY REFERENCES Customer(customer_id), -- Liên kết với bảng khách hàng (nếu có)
     total_amount FLOAT, -- Tổng tiền thanh toán
     purchase_time NVARCHAR(19) DEFAULT CONVERT(NVARCHAR, GETDATE(), 120), -- Thời gian thanh toán
     employee_id INT FOREIGN KEY REFERENCES Employee(employee_id), -- Nhân viên thực hiện giao dịch
-	ticket_id INT FOREIGN KEY REFERENCES Ticket(ticket_id) -- Liên kết với bảng vé
 );
 
 
+CREATE TABLE InvoiceDetail (
+    invoice_id INT, -- Liên kết với bảng hóa đơn
+    ticket_id INT, -- Liên kết với bảng vé
+    quantity INT, -- Số lượng vé
+    price_per_ticket FLOAT, -- Giá vé đơn lẻ
+    PRIMARY KEY (invoice_id, ticket_id), -- Khóa chính là cặp invoice_id và ticket_id
+    FOREIGN KEY (invoice_id) REFERENCES Invoice(invoice_id),
+    FOREIGN KEY (ticket_id) REFERENCES Ticket(ticket_id)
+);
 
-INSERT INTO EmployeeType (position) VALUES 
-(N'Quản lý'),
-(N'Nhân viên bán vé'),
-(N'Kỹ thuật viên');
+-- Tạo bảng SeatStatus (Trạng thái ghế)
+CREATE TABLE SeatStatus (
+    status_id INT PRIMARY KEY,
+    status_name VARCHAR(20)
+);
 
-INSERT INTO Employee (name, type_id, hire_date, phone, email, salary) VALUES 
-(N'Nguyễn Văn A', 1, N'2022-01-10', N'0901234567', N'a.nguyen@example.com', 1500.00),
-(N'Tran Thị B', 2, N'2023-03-20', N'0902345678', N'b.tran@example.com', 1200.00),
-(N'Lê Văn C', 3, N'2021-06-15', N'0903456789', N'c.le@example.com', 1300.00);
+-- Tạo bảng Seat (Ghế)
+CREATE TABLE Seat (
+    seat_id INT IDENTITY(1,1) PRIMARY KEY,
+    theater_id INT,
+    seat_number VARCHAR(10),
+    status_id INT,
+    FOREIGN KEY (theater_id) REFERENCES Theater(theater_id),
+    FOREIGN KEY (status_id) REFERENCES SeatStatus(status_id)
+);
+
+CREATE TABLE Account (
+    account_id INT PRIMARY KEY IDENTITY(1,1),
+    username NVARCHAR(50) NOT NULL UNIQUE, -- Tên đăng nhập
+    password NVARCHAR(255) NOT NULL, -- Mật khẩu (cần mã hóa trong thực tế)
+    employee_id INT, -- Khóa ngoại liên kết với bảng Employee
+    FOREIGN KEY (employee_id) REFERENCES Employee(employee_id) -- Khóa ngoại
+);
 
 
-INSERT INTO Customer (name, phone, email) VALUES 
-(N'Phan Thị D', N'0904567890', N'd.phan@example.com'),
-(N'Hoàng Văn E', N'0905678901', N'e.hoang@example.com');
-
-
-INSERT INTO Movie (title, genre, duration, release_date, director) VALUES 
-(N'The Matrix', N'Action', 136, N'1999-03-31', N'The Wachowskis'),
-(N'Inception', N'Sci-Fi', 148, N'2010-07-16', N'Christopher Nolan'),
-(N'Titanic', N'Romance', 195, N'1997-12-19', N'James Cameron');
-
-INSERT INTO Theater (name, location, capacity) VALUES 
-(N'Phòng 1', N'Tầng 1', 100),
-(N'Phòng 2', N'Tầng 2', 150),
-(N'Phòng VIP', N'Tầng 3', 50);
-
-INSERT INTO Showtime (movie_id, theater_id, show_date, start_time) VALUES 
-(1, 1, N'2024-09-10', N'14:00'), -- The Matrix
-(2, 2, N'2024-09-11', N'16:30'), -- Inception
-(3, 3, N'2024-09-12', N'18:00'); -- Titanic
-
-INSERT INTO Ticket (showtime_id, seat_number, price, purchase_time) VALUES 
-(1, N'A1', 7.5, N'2024-09-05 13:45:00'),
-(2, N'B2', 9.0, N'2024-09-05 15:00:00'),
-(3, N'C3', 12.5, N'2024-09-05 17:30:00');
-
-INSERT INTO Invoice (customer_name, customer_id, total_amount, purchase_time, employee_id, ticket_id) VALUES 
-(N'Phan Thị D', 1, 7.5, N'2024-09-05 13:50:00', 2, 1),  -- Liên kết với vé có ticket_id = 1
-(N'Hoàng Văn E', 2, 9.0, N'2024-09-05 15:05:00', 2, 2),  -- Liên kết với vé có ticket_id = 2
-(N'Nguyễn Văn F', NULL, 12.5, N'2024-09-05 17:35:00', 1, 3); -- Liên kết với vé có ticket_id = 3
-
-ALTER TABLE Customer
-DROP COLUMN email;
-
-ALTER TABLE Employee
-DROP COLUMN salary;
 
 
 --drop database db_movie
